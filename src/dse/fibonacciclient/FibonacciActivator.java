@@ -4,41 +4,36 @@ import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 
-import dse.fibonacciservice.service.FibonacciService;
+
+//import dse.fibonacciservice.service.FibonacciService;
+import api.FibonacciService;
 
 public class FibonacciActivator implements BundleActivator {
 
-    ServiceReference fibonacciServiceReference;
+    ServiceReference<?> fibonacciServiceReference;
     public static BundleContext bc = null;    
     private FibonacciConsumerThread thread = null;
     FibonacciService fibonacciService;
+    public static int sequencesize;
+    public final static int defaultSequenceSize = 4;
     
     public void start(BundleContext context) throws Exception {
         System.out.println("Fibonacci Client-A!!");
-        FibonacciActivator.bc = context;
-        fibonacciServiceReference= context.getServiceReference(FibonacciService.class.getName());
-//        FibonacciService 
-        fibonacciService =(FibonacciService)context.getService(fibonacciServiceReference);
-  
-//        Debug: All numbers...
-//        System.out.println(fibonacciService.getFibonacci());        
-
+        bc = context;
+		if(FibonacciActivator.bc.getServiceReference(FibonacciService.class.getName()) != null){
+			fibonacciServiceReference = context.getServiceReference(FibonacciService.class.getName());
+			fibonacciService = (FibonacciService)context.getService(fibonacciServiceReference);
+		}
+              
         this.thread = new FibonacciConsumerThread();
         this.thread.start();
-//        for(int i=0; i < 10; i++){
-//        	System.out.println("Client-A: " + fibonacciService.getNextFib());
-//        	sleepThread.sleep(1000);
-//        }
-        
-//        this.stop(context);
     }
     
     public void stop(BundleContext context) throws Exception {
-        System.out.println("Goodbye Fibonacci Client-A!!");
+        System.out.println("Client-A: Stopped");
         
         this.thread.stopThread();
         this.thread.join();
-//        FibonacciActivator.bc = null;        
         context.ungetService(fibonacciServiceReference);
     }
 }
@@ -46,26 +41,53 @@ public class FibonacciActivator implements BundleActivator {
 class FibonacciConsumerThread extends Thread {
 
 	private boolean running = true;
+	private boolean serverStopped = false;
 	public FibonacciConsumerThread() {}
 	
 	public void run() {
 		while (running) {
+			
+		    ServiceReference<?> fibonacciServiceReference;
+		    FibonacciService fibonacciService;
+			if(FibonacciActivator.bc.getServiceReference(FibonacciService.class.getName()) != null){
+				fibonacciServiceReference = FibonacciActivator.bc.getServiceReference(FibonacciService.class.getName());
+				
+			    if(FibonacciActivator.bc.getService(fibonacciServiceReference) != null){
+			    	fibonacciService =(FibonacciService)FibonacciActivator.bc.getService(fibonacciServiceReference);
 
-		    ServiceReference fibonacciServiceReference;
-			fibonacciServiceReference = FibonacciActivator.bc.getServiceReference(FibonacciService.class.getName());
-			
-		    FibonacciService fibonacciService;					
-			fibonacciService =(FibonacciService)FibonacciActivator.bc.getService(fibonacciServiceReference);
-			
-			System.out.println("Client-A: " + fibonacciService.getNextFib()); 
-//			fibonacciService.getFibonacci());  
-					
-					
-//			System.out.println("Hello World!");
-			try {
-				Thread.sleep(2000);
-			} catch (InterruptedException e) {
-				System.out.println("HelloWorldThread ERROR: " + e);
+			    	// Make sure that the OSGi property hasn't changed
+			        if(FibonacciActivator.bc.getProperty("dse.fibonacci.service.fibsize") != null){
+			            FibonacciActivator.sequencesize = Integer.valueOf(FibonacciActivator.bc.getProperty("dse.fibonacci.service.fibsize"));        	
+			        }
+			        else{
+			        	FibonacciActivator.sequencesize = FibonacciActivator.defaultSequenceSize;
+			        }
+			    	
+			        // Output the number of fibonacci numbers given by the sequencesize field.
+			    	for(int i=0; i < FibonacciActivator.sequencesize; ++i){
+				    	System.out.println("Client-A: " + fibonacciService.getNextFib());
+			    	}
+			    }
+			    
+				try {
+					Thread.sleep(2000);
+				} catch (InterruptedException e) {
+					System.out.println("FibonacciClientAThread ERROR: " + e);
+				}
+			}
+			else{
+				// Only run once
+				if(!serverStopped){
+					System.out.println("Client-A: Fibonacci Server is paused");
+					serverStopped = true;
+				}
+				
+				// Wait 10 seconds before we re-check server availability.
+				try {
+					Thread.sleep(10000);
+				} catch (InterruptedException e) {
+					System.out.println("FibonacciClientAThread ERROR: " + e);
+				}
 			}
 		}
 	}
@@ -73,5 +95,4 @@ class FibonacciConsumerThread extends Thread {
 	public void stopThread() {
 		this.running = false;
 	}
-
 }
